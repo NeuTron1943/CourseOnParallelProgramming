@@ -51,7 +51,7 @@ int main (int argc, char *  argv []){
 
     cout << "CPU:" << endl;
     cout << "N      Time1     Time2      Time3" << endl;
-    for (int n = 2; n < 1000000; n*=2 ){
+    for (int n = 2; n < 100000; n*=2 ){
         cout<< n << "   ";
         for (int i = 0; i < 3; i++){
             measureNoCUDA(n);
@@ -62,7 +62,7 @@ int main (int argc, char *  argv []){
 
     cout << "GPU:" << endl;
     cout << "N      Time1     Time2      Time3" << endl;
-    for (int n = 2; n < 1000000; n*=2 ){
+    for (int n = 2; n < 100000; n*=2 ){
         cout<< n << "   ";
         for (int i = 0; i < 3; i++){
             measureCUDA(n);
