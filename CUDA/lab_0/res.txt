@@ -1,0 +1,11 @@
+Found devices: 1
+Device: 0
+Compute capability: 6.1
+Name: Quadro P2000
+Total Global Memory: 5290131456
+Shared memory per block: 49152
+Registers per block: 65536
+Warpsize: 32
+Max threads per block: 1024
+Total constant memory: 65536
+Multiprocessors: 8
