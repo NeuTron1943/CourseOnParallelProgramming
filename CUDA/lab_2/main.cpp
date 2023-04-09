@@ -30,24 +30,6 @@ double CalculateDotProductCuda(double *hostLHS, double *hostRHS, int N);
 
 int main (int argc, char *  argv []){
     srand(static_cast <unsigned> (time(0)));
-    // int n = atoi(argv[1]);
-    // double *a = (double *)malloc(n * sizeof(double));
-    // for (int i = 0; i < n; i++) {
-    //     a[i] = static_cast <double> (rand()) / static_cast <double> (RAND_MAX);
-    // }
-    // double *b = (double *)malloc(n * sizeof(double));
-    // for (int i = 0; i < n; i++) {
-    //     b[i] = static_cast <double> (rand()) / static_cast <double> (RAND_MAX);
-    // }
-    // PrintArray(a, n);
-    // PrintArray(b, n);
-    // cout << "CPU:  " << CalculateDotProductNoCuda(a, b, n) << endl;
-    // cout << "CUDA:  " << CalculateDotProductCuda(a, b, n) << endl;
-
-    //cout << "CPU:  " << CalculateDotProductNoCuda(a, b, n) << endl;//"   CUDA:  " << CalculateDotProductCuda(a, b, n) << endl;
-    // for(int i = 4; i < 2000; i *= 2){
-    //     cout << "N = " << i << "  Single: " << measureNoCUDA(i) << "   CUDA: " << measureCUDA(i, 32) << endl;
-    // }
 
     cout << "CPU:" << endl;
     cout << "N      Time1     Time2      Time3" << endl;
