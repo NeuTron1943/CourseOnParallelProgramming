@@ -31,22 +31,23 @@ double CalculateDotProductCuda(double *hostLHS, double *hostRHS, int N);
 int main (int argc, char *  argv []){
     srand(static_cast <unsigned> (time(0)));
 
-    cout << "CPU:" << endl;
-    cout << "N      Time1     Time2      Time3" << endl;
-    for (int n = 2; n < 100000; n*=2 ){
-        cout<< n << "   ";
-        for (int i = 0; i < 3; i++){
-            measureNoCUDA(n);
-            cout << "   ";
-        }
-        cout << endl;
-    }
+    // cout << "CPU:" << endl;
+    // cout << "N      Time1     Time2      Time3" << endl;
+    // for (int n = 2; n < 100000; n*=2 ){
+    //     cout<< n << "   ";
+    //     for (int i = 0; i < 3; i++){
+    //         measureNoCUDA(n);
+    //         cout << "   ";
+    //     }
+    //     cout << endl;
+    // }
 
     cout << "GPU:" << endl;
-    cout << "N      Time1     Time2      Time3" << endl;
-    for (int n = 2; n < 100000; n*=2 ){
+    //cout << "N      Time1     Time2      Time3" << endl;
+    cout << "N      Time" << endl;
+    for (int n = 65536; n < 100000; n*=2 ){
         cout<< n << "   ";
-        for (int i = 0; i < 3; i++){
+        for (int i = 0; i < 1; i++){
             measureCUDA(n);
             cout << "   ";
         }
@@ -302,6 +303,7 @@ double CalculateDotProductNoCuda(double *lhs, double *rhs, int N){
 
 // Dot product of two arrays on GPU CUDA
 double CalculateDotProductCuda(double *hostLHS, double *hostRHS, int N){
+    
     double *hostInterRes; // helper for intermediate results
     double *deviceLHS, *deviceRHS, *deviceRES;
 
