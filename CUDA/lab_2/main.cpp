@@ -43,8 +43,7 @@ int main (int argc, char *  argv []){
     // }
 
     cout << "GPU:" << endl;
-    //cout << "N      Time1     Time2      Time3" << endl;
-    cout << "N      Time" << endl;
+    cout << "N      Time1     Time2      Time3" << endl;
     for (int n = 65536; n < 100000; n*=2 ){
         cout<< n << "   ";
         for (int i = 0; i < 1; i++){
