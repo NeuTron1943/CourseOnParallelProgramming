@@ -3,18 +3,20 @@
 #include <time.h>
 #include <iomanip>
 #define THREADS_PER_BLOCK 1024
-#define MAX_DEPTH 16            // max depth for quick sort layers
-#define INSERTION_SORT 32       // smaller than these - selection sort instead of quick
 
 using namespace std;
 
+__global__ void BubbleMove(double* array, int N, int step);
 
 __global__ void DotProduct(double const *deviceLHS, double const *deiceRHS, double *deviceRES, int N);
 
-__global__ void cdp_simple_quicksort(double* vec, int start, int end, int depth);
 
+
+void BubbleSortCUDA(double *array_host, int N, int blockSize);
 
 void PrintArray(const double* array, const int n);
+
+void BubbleSortNoCUDA(double *array, int N);
 
 bool IsSorted(double *array, int N);
 
@@ -26,20 +28,14 @@ double CalculateDotProductNoCuda(double *lhs, double *rhs, int N);
 
 double CalculateDotProductCuda(double *hostLHS, double *hostRHS, int N);
 
-int MakePartition(double* vec, int start, int end);
-
-void QuickSortCPU(double* vec, int start, int end);
-
-void QuickSortCUDA(double* vec, unsigned int nitems);
-
 
 int main (int argc, char *  argv []){
     srand(static_cast <unsigned> (time(0)));
 
     cout << "CPU:" << endl;
     cout << "N      Time1     Time2      Time3" << endl;
-    for (int n = 2; n < 2000000; n*=2 ){
-        cout<<setw(6) << n << "   ";
+    for (int n = 2; n < 100000; n*=2 ){
+        cout<< setw(6) <<  n << "   ";
         for (int i = 0; i < 3; i++){
             measureNoCUDA(n);
             cout << "   ";
@@ -49,9 +45,9 @@ int main (int argc, char *  argv []){
 
     cout << "GPU:" << endl;
     cout << "N      Time1     Time2      Time3" << endl;
-    //cout << "N      Time1" << endl;
-    for (int n = 2; n < 2000000; n*=2 ){
-        cout<< setw(6) << n << "   ";
+    //cout << "N      Time" << endl;
+    for (int n = 2; n < 100000; n*=2 ){
+        cout<< setw(6) <<  n << "   ";
         for (int i = 0; i < 3; i++){
             measureCUDA(n);
             cout << "   ";
@@ -60,6 +56,19 @@ int main (int argc, char *  argv []){
     }
     cout << endl;
     return 0;
+}
+
+__global__ void BubbleMove(double *array, int N, int step){
+    int idx = blockDim.x * blockIdx.x + threadIdx.x;
+    if (idx < (N-1)) {
+        if (step-2 >= idx  && (idx - step) % 2 == 0){
+            if (array[idx] < array[idx + 1]){
+                double helper = array[idx];
+                array[idx] = array[idx + 1];
+                array[idx + 1] = helper;
+            }
+        }
+    }
 }
 
 __global__ void DotProduct(double const *deviceLHS, double const *deviceRHS, double *deviceRES, int N){
@@ -99,6 +108,36 @@ __global__ void DotProduct(double const *deviceLHS, double const *deviceRHS, dou
     }
 }
 
+// Bubble sort on GPU CUDA
+void BubbleSortCUDA(double *array_host, int N, int blockSize){
+    double *array_device; 
+    cudaMalloc((void **)&array_device, N * sizeof(double));
+    cudaMemcpy(array_device, array_host, N*sizeof(double), cudaMemcpyHostToDevice);
+    int nblocks = N / blockSize + 1;
+    for (int step = 0; step <= N + N; step++) {
+        // Step of bubble sort
+        BubbleMove<<<nblocks, blockSize>>>(array_device, N, step);
+        // Wait for all threads to finish changes
+        //cudaThreadSynchronize();
+        cudaDeviceSynchronize();
+    }
+    cudaMemcpy(array_host, array_device, N*sizeof(double), cudaMemcpyDeviceToHost);
+    cudaFree(array_device);
+}
+
+// Bubble sort on CPU in one thread
+void BubbleSortNoCUDA(double *array, int N){
+  for (int i = 0; i < N; i++){
+    for (int j = 0; j < N-i-1; j++) {
+      if (array[j]<array[j + 1]){
+        double helper = array[j];
+        array[j] = array[j + 1];
+        array[j + 1] = helper;
+      }
+    }
+  }
+}
+
 // check if and array is sorted
 bool IsSorted(double *array, int N){
     for (int i = 0; i < N-1; i++){
@@ -118,19 +157,12 @@ void measureNoCUDA(int N) {
     float timeArray1Sorted, timeArray2Sorted, timeDotProduct;
     double resCPU = 0.0;
     for (int i = 0; i < N; i++) {
-        double value = static_cast <double> (rand()) / static_cast <double> (RAND_MAX);
-        if (value > 1e-7){
-            array1[i] = value + 0.1;
-        }
-        value = static_cast <double> (rand()) / static_cast <double> (RAND_MAX);
-        if (value > 1e-7){
-            array2[i] = value + 0.1;
-        }
-        //array2[i] = static_cast <double> (rand()) / static_cast <double> (RAND_MAX);
+        array1[i] = static_cast <double> (rand()) / static_cast <double> (RAND_MAX);
+        array2[i] = static_cast <double> (rand()) / static_cast <double> (RAND_MAX);
     }
 
     start_time = clock();
-    QuickSortCPU(array1, 0, N-1);
+    BubbleSortNoCUDA(array1, N);
     end_time = clock();
 
     timeArray1Sorted = (float)(end_time - start_time) / CLOCKS_PER_SEC;
@@ -147,7 +179,7 @@ void measureNoCUDA(int N) {
     }
 
     start_time = clock();
-    QuickSortCPU(array2, 0, N-1);
+    BubbleSortNoCUDA(array2, N);
     end_time = clock();
 
     timeArray2Sorted = (float)(end_time - start_time) / CLOCKS_PER_SEC;
@@ -188,28 +220,13 @@ void measureCUDA(int N){
     double resGPU = 0.0;
     double resCPU = 0.0;
     for (int i = 0; i < N; i++) {
-        double value = static_cast <double> (rand()) / static_cast <double> (RAND_MAX);
-        if (value > 1e-7){
-            array1[i] = value + 0.1;
-        }
-        value = static_cast <double> (rand()) / static_cast <double> (RAND_MAX);
-        if (value > 1e-7){
-            array2[i] = value + 0.1;
-        }
-        //array2[i] = static_cast <double> (rand()) / static_cast <double> (RAND_MAX);
+        array1[i] = static_cast <double> (rand()) / static_cast <double> (RAND_MAX);
+        array2[i] = static_cast <double> (rand()) / static_cast <double> (RAND_MAX);
     }
 
-    double *arrayCP = (double *)malloc(N * sizeof(double));
-    for (int i = 0; i < N; i++){
-        arrayCP[i] = array1[i];
-    }
-    //cout << array1 << endl;
     start_time = clock();
-    //BubbleSortCUDA(array1, N, THREADS_PER_BLOCK);
-    QuickSortCUDA(array1, N);
-    //run_qsort(array1, N);
+    BubbleSortCUDA(array1, N, THREADS_PER_BLOCK);
     end_time = clock();
-    //cout << array1 << endl;
 
     timeArray1Sorted = (float)(end_time - start_time) / CLOCKS_PER_SEC;
 
@@ -221,16 +238,11 @@ void measureCUDA(int N){
         free(array1);
         free(array2);
         cout << "ERROR, ARRAY 1 NOT SORTED" << endl;
-        //PrintArray(array1, N);
-        //PrintArray(arrayCP, N);
-        throw exception();
         return;
     }
 
     start_time = clock();
-    //BubbleSortCUDA(array2, N, THREADS_PER_BLOCK);
-    QuickSortCUDA(array2, N);
-    //run_qsort(array2, N);
+    BubbleSortCUDA(array2, N, THREADS_PER_BLOCK);
     end_time = clock();
 
     timeArray2Sorted = (float)(end_time - start_time) / CLOCKS_PER_SEC;
@@ -329,168 +341,3 @@ double CalculateDotProductCuda(double *hostLHS, double *hostRHS, int N){
 
     return res;
 }
-
-// Making partition in vector for quick sort algorithm
-int MakePartition(double* vec, int start, int end){
-	// Taking first element as pivot point
-	double pivot = vec[start];
-
-	// Finding corret position of pivot element
-	int count = 0;
-	for (int i = start + 1; i <= end; i++) {
-		if (vec[i] >= pivot)
-			count++;
-	}
-
-	// Giving pivot element its correct position
-	int pivotIndex = start + count;
-	swap(vec[pivotIndex], vec[start]);
-
-	// Now pivot element is on its true position
-	// and we need to place elements greater than pivot on the left and less on the right
-	int i = start;
-	int j = end;
-
-	// Number of missplaced elements is even, so we will use pair swaps
-	while (i < pivotIndex && j > pivotIndex) {
-
-		while (vec[i] >= pivot) {
-			i++;
-		}
-
-		while (vec[j] < pivot) {
-			j--;
-		}
-
-		if (i < pivotIndex && j > pivotIndex) {
-			swap(vec[i++], vec[j--]);
-		}
-	}
-
-	return pivotIndex;
-}
-
-// QuickSort on CPU, main sorting algorithm
-void QuickSortCPU(double* vec, int start, int end){
-	// base of the recursion
-	if (start >= end)
-		return;
-
-	// partitioning the array
-	int p = MakePartition(vec, start, end);
-
-	// Sorting the left part
-	QuickSortCPU(vec, start, p - 1);
-
-	// Sorting the right part
-	QuickSortCPU(vec, p + 1, end);
-}
-
-
-__device__ void selection_sort(double* data, int start, int end) {
-    for (int i = start; i <= end; ++i) {
-        double max_val = data[i];
-        int max_idx = i;
-
-        // Find the smallest value in the range [start, end].
-        for (int j = i + 1; j <= end; ++j) {
-            double val_j = data[j];
-
-            if (val_j > max_val) {
-                max_idx = j;
-                max_val = val_j;
-            }
-        }
-
-        // Swap the values.
-        if (i != max_idx) {
-            data[max_idx] = data[i];
-            data[i] = max_val;
-        }
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Very basic quicksort algorithm, recursively launching the next level.
-////////////////////////////////////////////////////////////////////////////////
-__global__ void cdp_simple_quicksort(double* vec, int start, int end, int depth) {
-    if (depth >= MAX_DEPTH || end - start <= INSERTION_SORT) {
-        selection_sort(vec, start, end);
-        return;
-    }
-
-    double helper;
-
-    // Make partitioning (like in serial mode)
-    double pivot = vec[start];
-	// Finding corret position of pivot element
-	int count = 0;
-	for (int i = start + 1; i <= end; i++) {
-		if (vec[i] >= pivot)
-			count++;
-	}
-	// Giving pivot element its correct position
-	int pivotIndex = start + count;
-	//swap(vec[pivotIndex], vec[start]);
-    helper = vec[pivotIndex];
-    vec[pivotIndex] = vec[start];
-    vec[start] = helper;
-
-	// Now pivot element is on its true position
-	// and we need to place elements greater than pivot on the left and less on the right
-	int i = start;
-	int j = end;
-
-	// Number of missplaced elements is even, so we will use pair swaps
-	while (i < pivotIndex && j > pivotIndex) {
-
-		while (vec[i] >= pivot) {
-			i++;
-		}
-
-		while (vec[j] < pivot) {
-			j--;
-		}
-
-		if (i < pivotIndex && j > pivotIndex) {
-			//swap(vec[i++], vec[j--]);
-            helper = vec[i];
-            vec[i] = vec[j];
-            vec[j] = helper;
-            i++;
-            j--;
-		}
-	}
-
-    // Launch a new block to sort the left part.
-    cudaStream_t s;
-    cudaStreamCreateWithFlags(&s, cudaStreamNonBlocking);
-    cdp_simple_quicksort<<<1, 1, 0, s>>>(vec, start, pivotIndex - 1, depth + 1);
-    cudaStreamDestroy(s);
-
-
-    // Launch a new block to sort the right part.
-    cudaStream_t s1;
-    cudaStreamCreateWithFlags(&s1, cudaStreamNonBlocking);
-    cdp_simple_quicksort<<<1, 1, 0, s1>>>(vec, pivotIndex + 1, end, depth + 1);
-    cudaStreamDestroy(s1);
-
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Call the quicksort kernel from the host.
-////////////////////////////////////////////////////////////////////////////////
-void QuickSortCUDA(double* vec, unsigned int nitems) {
-    double *array_device; 
-    cudaMalloc((void **)&array_device, nitems * sizeof(double));
-    cudaMemcpy(array_device, vec, nitems*sizeof(double), cudaMemcpyHostToDevice);
-    // Launch on device
-    int left = 0;
-    int right = nitems - 1;
-    // std::cout << "Launching kernel on the GPU" << std::endl;
-    cdp_simple_quicksort<<<1, 1>>>(array_device, left, right, 0);
-    cudaDeviceSynchronize();
-    cudaMemcpy(vec, array_device, nitems*sizeof(double), cudaMemcpyDeviceToHost);
-    cudaFree(array_device);
-}
-
