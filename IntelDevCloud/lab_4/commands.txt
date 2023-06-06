@@ -1,0 +1,5 @@
+qsub build.sh
+qsub run.sh
+watch -n 1 qstat -n -1
+
+Target Device: Intel(R) UHD Graphics [0x9a60]
